@@ -41,8 +41,11 @@
   }
   async function start() {
     if (started || !isNativeAndroid()) return;
-    started = true;
     try {
+      const context = await getClientAndUser();
+      if (!context) return;
+      started = true;
+      patchSignOut(context.client);
       const plugin = window.ERecPassPushNotifications;
       const permission = await plugin.checkPermissions();
       let receive = permission && permission.receive;
@@ -55,8 +58,6 @@
       await plugin.addListener('registrationError', function (error) { console.warn(TAG, 'Firebase token registration failed:', error); });
       await plugin.addListener('pushNotificationReceived', function (notification) { console.info(TAG, 'Push notification received while app is open.', notification && notification.id); });
       await plugin.addListener('pushNotificationActionPerformed', function (action) { window.dispatchEvent(new CustomEvent('erecpass:push-opened', { detail: action || {} })); });
-      const context = await getClientAndUser();
-      if (context) patchSignOut(context.client);
       await plugin.register();
       setTimeout(saveToken, 1500);
     } catch (error) { console.warn(TAG, 'Push registration setup failed:', error && error.message ? error.message : error); }
