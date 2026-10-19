@@ -1,6 +1,5 @@
 -- Additive-only schema for native FCM device tokens and push event dispatch.
-create schema if not exists net;
-create extension if not exists pg_net with schema net;
+create extension if not exists pg_net with schema extensions;
 -- Existing ERecPass tables and UI functions are not altered.
 create table if not exists public.device_push_tokens (
   token text primary key,
@@ -100,7 +99,7 @@ begin
     return NEW;
   end if;
 
-  perform net.http_post(
+  perform extensions.http_post(
     url := 'https://bfboehvgrivanmrfqquw.supabase.co/functions/v1/erecpass-push-notification',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
