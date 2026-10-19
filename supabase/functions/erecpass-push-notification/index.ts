@@ -39,12 +39,36 @@ Deno.serve(async (req) => {
       title = sender.data?.role === "staff" ? "New staff message" : sender.data?.role === "admin" ? "New reply from ERecPass" : "New patient message";
       kind = "chat";
     } else if (event.table === "appointments") {
-      const patient = await db.from("patients").select("user_id").eq("id", String(record.patient_id || "")).maybeSingle();
-      if (patient.error) throw patient.error;
-      if (event.type === "UPDATE" && String(event.old_record?.status || "") === String(record.status || "")) return reply({ ok: true, skipped: "status unchanged" });
-      if (patient.data?.user_id) recipients = [String(patient.data.user_id)];
-      title = "Appointment updated";
-      body = "Your appointment status is now: " + String(record.status || "updated") + ".";
+      const patientId = String(record.patient_id || "");
+      if (event.type === "INSERT") {
+        const creatorId = String(record.created_by || "");
+        const creator = creatorId
+          ? await db.from("profiles").select("role").eq("id", creatorId).maybeSingle()
+          : { data: null, error: null };
+        if (creator.error) throw creator.error;
+        if (creator.data?.role === "admin") {
+          const patient = await db.from("patients").select("user_id").eq("id", patientId).maybeSingle();
+          if (patient.error) throw patient.error;
+          if (patient.data?.user_id) recipients = [String(patient.data.user_id)];
+          title = "Appointment scheduled";
+          body = "An appointment was added to your ERecPass account.";
+        } else {
+          const admins = await db.from("profiles").select("id").eq("role", "admin").eq("active", true);
+          if (admins.error) throw admins.error;
+          recipients = (admins.data || []).map((x) => String(x.id));
+          title = "New appointment request";
+          body = "An appointment request needs review in ERecPass.";
+        }
+      } else if (event.type === "UPDATE") {
+        if (String(event.old_record?.status || "") === String(record.status || "")) return reply({ ok: true, skipped: "status unchanged" });
+        const patient = await db.from("patients").select("user_id").eq("id", patientId).maybeSingle();
+        if (patient.error) throw patient.error;
+        if (patient.data?.user_id) recipients = [String(patient.data.user_id)];
+        title = "Appointment status updated";
+        body = "Your appointment status is now: " + String(record.status || "updated") + ".";
+      } else {
+        return reply({ ok: true, skipped: "unsupported appointment event" });
+      }
       kind = "appointment";
     } else if (event.table === "patients" && event.type === "UPDATE") {
       if (!event.changed_lab_results && !event.changed_prescriptions) return reply({ ok: true, skipped: "no record changes" });
