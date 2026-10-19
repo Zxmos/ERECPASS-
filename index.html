@@ -4069,18 +4069,43 @@ async function downloadPatientQR() {
   }
 
   if (!qrDisplay.querySelector('canvas, img')) generatePatientQR();
+  let canvas = qrDisplay.querySelector('canvas');
+  if (!canvas && typeof QRCode !== 'undefined') {
+    generatePatientQR();
+    canvas = qrDisplay.querySelector('canvas');
+  }
   const fileName = 'ERecPass-Patient-QR-' + String(currentSession.data.id).replace(/[^a-zA-Z0-9_-]/g, '_') + '.png';
 
   try {
-    // Prefer a locally generated canvas; it does not require CORS or internet access.
-    let canvas = qrDisplay.querySelector('canvas');
-    if (!canvas && typeof QRCode !== 'undefined') {
-      generatePatientQR();
-      canvas = qrDisplay.querySelector('canvas');
+    // Android WebView: save the local QR canvas directly. This avoids Blob/toBlob
+    // support differences and does not depend on CORS or an external QR image host.
+    if (window.ERecPassNative && typeof window.ERecPassNative.savePng === 'function') {
+      if (!canvas) throw new Error('Local QR canvas is not ready. Please tap Generate QR and try again.');
+      const dataUrl = canvas.toDataURL('image/png');
+      const comma = dataUrl.indexOf(',');
+      if (comma < 0) throw new Error('Could not encode QR image');
+      const nativeResult = window.ERecPassNative.savePng(dataUrl.slice(comma + 1), fileName);
+      if (String(nativeResult).startsWith('OK:')) {
+        alert('Patient QR saved to Downloads/ERecPass/' + fileName);
+        return;
+      }
+      throw new Error(String(nativeResult || 'Android could not save the QR image'));
     }
+
+    // Browser fallback: use the local canvas where possible, otherwise fetch the QR image.
     let blob = null;
     if (canvas) {
       blob = await new Promise((resolve, reject) => {
+        if (typeof canvas.toBlob !== 'function') {
+          try {
+            const dataUrl = canvas.toDataURL('image/png');
+            const binary = atob(dataUrl.split(',')[1]);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            resolve(new Blob([bytes], { type: 'image/png' }));
+          } catch (e) { reject(e); }
+          return;
+        }
         canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not create QR image')), 'image/png');
       });
     } else {
@@ -4091,29 +4116,6 @@ async function downloadPatientQR() {
       blob = await response.blob();
     }
 
-    // Native Android APK: write the PNG directly into the public Downloads folder.
-    // This avoids Android WebView's unsupported <a download> behavior.
-    if (window.ERecPassNative && typeof window.ERecPassNative.savePng === 'function') {
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const result = String(reader.result || '');
-          const comma = result.indexOf(',');
-          if (comma < 0) reject(new Error('Could not encode QR image'));
-          else resolve(result.slice(comma + 1));
-        };
-        reader.onerror = () => reject(new Error('Could not read QR image'));
-        reader.readAsDataURL(blob);
-      });
-      const nativeResult = window.ERecPassNative.savePng(base64, fileName);
-      if (String(nativeResult).startsWith('OK:')) {
-        alert('Patient QR saved to Downloads/ERecPass/' + fileName);
-        return;
-      }
-      throw new Error(String(nativeResult || 'Android could not save the QR image'));
-    }
-
-    // Browser fallback for the web version and older builds.
     if (navigator.share && typeof File !== 'undefined') {
       const file = new File([blob], fileName, { type: 'image/png' });
       if (!navigator.canShare || navigator.canShare({ files: [file] })) {
@@ -4136,15 +4138,15 @@ async function downloadPatientQR() {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
-    alert("QR download requested. If it does not appear in Downloads, choose Save to Files from the Android share option.");
+    alert("QR download requested. Check your browser Downloads folder or choose Save from the share option.");
   } catch (error) {
     console.warn('ERecPass QR download fallback:', error);
     const qrImg = qrDisplay.querySelector('img');
     if (qrImg?.src) {
       window.open(qrImg.src, '_blank', 'noopener');
-      alert("Direct saving was blocked by Android. Long-press the QR image and choose Download image.");
+      alert("Direct saving was blocked. Long-press the QR image and choose Download image.");
     } else {
-      alert("Unable to download the QR code right now. Please check your internet connection and try again.");
+      alert("Unable to download the QR code right now. Please generate the QR again and retry.");
     }
   }
 }
