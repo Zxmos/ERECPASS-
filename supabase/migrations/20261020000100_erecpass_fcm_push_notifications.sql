@@ -1,4 +1,5 @@
 -- Additive-only schema for native FCM device tokens and push event dispatch.
+create extension if not exists pg_net with schema net;
 -- Existing ERecPass tables and UI functions are not altered.
 create table if not exists public.device_push_tokens (
   token text primary key,
