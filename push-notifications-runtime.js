@@ -20,6 +20,7 @@
     try {
       const context = await getClientAndUser();
       if (!context) return;
+      patchSignOut(context.client);
       const result = await context.client.from('device_push_tokens').upsert({ token, user_id: context.user.id, platform: 'android', updated_at: new Date().toISOString() }, { onConflict: 'token' });
       if (result.error) throw result.error;
       console.info(TAG, 'Device token registered for current account.');
