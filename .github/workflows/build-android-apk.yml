@@ -82,7 +82,7 @@ jobs:
               raise SystemExit("Could not locate the medication reminders script tag exactly once")
           for tag in tags:
               if tag not in s:
-                  s = s.replace(target, tag + "\\n" + target, 1)
+                  s = s.replace(target, tag + chr(10) + target, 1)
           p.write_text(s)
           PY
           # Package QR generation and camera-scanner libraries locally so the APK
@@ -150,16 +150,19 @@ jobs:
           gradle = root.read_text()
           plugin = "classpath 'com.google.gms:google-services:4.4.2'"
           if plugin not in gradle:
-              match = re.search(r"(buildscript\\s*\\{[\\s\\S]*?dependencies\\s*\\{)", gradle)
-              if not match:
+              needle = "dependencies {"
+              pos = gradle.find(needle)
+              if pos < 0 or "buildscript {" not in gradle[:pos]:
                   raise SystemExit("Could not locate buildscript dependencies in android/build.gradle")
-              gradle = gradle[:match.end()] + "\\n        " + plugin + gradle[match.end():]
+              insert_at = pos + len(needle)
+              gradle = gradle[:insert_at] + chr(10) + "        " + plugin + gradle[insert_at:]
+              root.write_text(gradle)
               root.write_text(gradle)
           app = Path("android/app/build.gradle")
           app_gradle = app.read_text()
           app_plugin = "apply plugin: 'com.google.gms.google-services'"
           if app_plugin not in app_gradle:
-              app.write_text(app_gradle.rstrip() + "\\n\\n" + app_plugin + "\\n")
+              app.write_text(app_gradle.rstrip() + chr(10) + chr(10) + app_plugin + chr(10))
           print("Firebase Android config verified and Google Services Gradle plugin configured.")
           PY
           # Ensure Android declares camera access for the in-app QR scanner.
