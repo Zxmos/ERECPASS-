@@ -47,6 +47,9 @@
       let receive = permission && permission.receive;
       if (receive !== 'granted') receive = (await plugin.requestPermissions()).receive;
       if (receive !== 'granted') { console.info(TAG, 'Notification permission was not granted.'); return; }
+      if (typeof plugin.createChannel === 'function') {
+        await plugin.createChannel({ id: 'erecpass-updates', name: 'ERecPass Updates', description: 'Messages and health record updates', importance: 5, sound: 'default', vibration: true });
+      }
       await plugin.addListener('registration', async function (result) { token = String(result && result.value || ''); await saveToken(); });
       await plugin.addListener('registrationError', function (error) { console.warn(TAG, 'Firebase token registration failed:', error); });
       await plugin.addListener('pushNotificationReceived', function (notification) { console.info(TAG, 'Push notification received while app is open.', notification && notification.id); });
