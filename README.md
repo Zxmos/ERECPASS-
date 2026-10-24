@@ -1,6 +1,6 @@
-# ERecPass — Hospital Portal
+# ErecPass — Hospital Portal
 
-ERecPass is a hospital portal with a Supabase-backed data layer. The existing UI remains in `index.html`; `supabase-runtime.js` handles Auth, cloud data synchronization, and Realtime refreshes.
+ErecPass is a hospital portal with a Supabase-backed data layer. The existing UI remains in `index.html`; `supabase-runtime.js` handles Auth, cloud data synchronization, and Realtime refreshes.
 
 ## Backend
 - Supabase project: `ERECPASS`
